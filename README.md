@@ -1,16 +1,16 @@
-# dYdX Fork of CometBFT
+# PerpX Fork of CometBFT
 
 This is a lightweight fork of CometBFT. The current version of the forked code resides on the [default branch](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-branches#about-the-default-branch).
 
 ## Making Changes to the Fork
 
-1. Open a PR against the current default branch (i.e. `dydx-fork-v0.38.2`).
+1. Open a PR against the current default branch (i.e. `perpx-fork-v0.38.2`).
 2. Get approval, and merge.
-3. After merging, update the `v4` repository's `go.mod`, and `go.sum` files with your merged `$COMMIT_HASH`.
-4. (In `dydxprotocol/v4`) `go mod edit -replace github.com/cometbft/cometbft=github.com/dydxprotocol/cometbft@$COMMIT_HASH`
-5. (In `dydxprotocol/v4`) `go mod tidy`
-6. (In `dydxprotocol/v4`) update package references in `mocks/Makefile`. See [here](https://github.com/dydxprotocol/v4/pull/848) for an example.
-7. Open a PR in `dydxprotocol/v4` to bump the version of the fork.
+3. After merging, update the `perpx-chain` repository's `go.mod`, and `go.sum` files with your merged `$COMMIT_HASH`.
+4. (In `1119-Labs/perpx-chain`) `go mod edit -replace github.com/cometbft/cometbft=github.com/1119-Labs/cometbft@$COMMIT_HASH`
+5. (In `1119-Labs/perpx-chain`) `go mod tidy`
+6. (In `1119-Labs/perpx-chain`) update package references in `mocks/Makefile`. See [here](https://github.com/1119-Labs/perpx-chain/pull/848) for an example.
+7. Open a PR in `1119-Labs/perpx-chain` to bump the version of the fork.
 
 ## Fork maintenance
 
@@ -20,16 +20,16 @@ Note that this doesn't pull in upstream tags, so in order to do this follow thes
 1. `git fetch upstream`
 2. `git push --tags`
 
-## dYdX Proto maintenance
+## PerpX Proto maintenance
 
-In order to support some of our custom functionality, we require some dydx protobuf files to be copied into this repository. Currently, the source of truth for protos is in `dydxprotocol/v4`, and any changes that require updates to any of the protos in this repository should be sync'd over as well. Here are steps for updating and compiling the protos here.
+In order to support some of our custom functionality, we require some PerpX protobuf files to be copied into this repository. Currently, the source of truth for protos is in `1119-Labs/perpx-chain`, and any changes that require updates to any of the protos in this repository should be sync'd over as well. Here are steps for updating and compiling the protos here.
 
-1. Modify the protos in `proto/dydxcometbft`.
+1. Modify the protos in `proto/perpxcometbft`.
 2. `make proto-gen`
 
 Note that the protos cannot be copied over directly. golang protobufs share a global namespace, and we have changed the package name slightly to avoid a name clash.
 
-We've also included a new dependency in the `buf.yaml` file for `"cosmos_proto/cosmos.proto"`. If this needs to be updated, run `buf build`. For more information, read [here](https://github.com/dydxprotocol/v4/tree/main/proto#update-protos).
+We've also included a new dependency in the `buf.yaml` file for `"cosmos_proto/cosmos.proto"`. If this needs to be updated, run `buf build`. For more information, read [here](https://github.com/1119-Labs/perpx-chain/tree/main/proto#update-protos).
 
 In the future, we will aim to have a single source of truth for protos.
 
@@ -38,12 +38,12 @@ In the future, we will aim to have a single source of truth for protos.
 When a new version of CometBFT is published, we may want to adopt the changes in our fork. This process can be somewhat tedious, but below are the recommended steps to accomplish this.
 
 1. Ensure the `main` branch and all tags are up to date by following the steps above in "Fork maintenance".
-2. Create a new branch off the desired CometBFT commit using tags. `git checkout -b dydx-fork-$VERSION <CometBFT repo's tag name>`. The new branch should be named something like `dydx-fork-$VERSION` where `$VERSION` is the version of CometBFT being forked (should match the CometBFT repo's tag name). i.e. `dydx-fork-v0.38.2`.
+2. Create a new branch off the desired CometBFT commit using tags. `git checkout -b perpx-fork-$VERSION <CometBFT repo's tag name>`. The new branch should be named something like `perpx-fork-$VERSION` where `$VERSION` is the version of CometBFT being forked (should match the CometBFT repo's tag name). i.e. `perpx-fork-v0.38.2`.
 3. Push the new branch.
-4. Open a PR which cherry-picks each commit in the current default branch, in order, on to the new `dydx-fork-$VERSION` branch (note: you may want to consider creating multiple PRs for this process if there are difficulties or merge conflicts). For example, `git cherry-pick <commit hash>`.
+4. Open a PR which cherry-picks each commit in the current default branch, in order, on to the new `perpx-fork-$VERSION` branch (note: you may want to consider creating multiple PRs for this process if there are difficulties or merge conflicts). For example, `git cherry-pick <commit hash>`.
 5. Get approval, and merge.
-6. Update `dydxprotocol/v4` by following the steps in "Making Changes to the fork" above.
-7. Set `dydx-fork-$VERSION` as the [default branch](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/changing-the-default-branch) in this repository.
+6. Update `1119-Labs/perpx-chain` by following the steps in "Making Changes to the fork" above.
+7. Set `perpx-fork-$VERSION` as the [default branch](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-branches-in-your-repository/changing-the-default-branch) in this repository.
 
 # CometBFT
 
