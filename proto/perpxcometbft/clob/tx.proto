@@ -1,12 +1,12 @@
 syntax = "proto3";
-package dydxcometbft.clob;
+package perpxcometbft.clob;
 
 import "gogoproto/gogo.proto";
-import "dydxcometbft/clob/order.proto";
+import "perpxcometbft/clob/order.proto";
 
 // this line is used by starport scaffolding # proto/tx/import
 
-option go_package = "github.com/cometbft/cometbft/proto/dydxcometbft/clob";
+option go_package = "github.com/cometbft/cometbft/proto/perpxcometbft/clob";
 
 // dYdX fork: This file is trimmed down to not include the service component since it requires the
 // `option (cosmos.msg.v1.service) = true;` tag.

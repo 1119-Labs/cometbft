@@ -57,3 +57,7 @@ proto/spec/**/*.pb.go
 *.dvi
 # Python virtual environments
 .venv
+
+# agents
+.serena
+.claude
