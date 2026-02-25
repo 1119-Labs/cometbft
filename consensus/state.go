@@ -15,6 +15,7 @@ import (
 
 	cfg "github.com/cometbft/cometbft/config"
 	cstypes "github.com/cometbft/cometbft/consensus/types"
+	mempl "github.com/cometbft/cometbft/mempool"
 	"github.com/cometbft/cometbft/crypto"
 	cmtevents "github.com/cometbft/cometbft/libs/events"
 	"github.com/cometbft/cometbft/libs/fail"
@@ -145,6 +146,9 @@ type State struct {
 
 	// offline state sync height indicating to which height the node synced offline
 	offlineStateSyncHeight int64
+
+	// mempool for compact proposal tx lookup
+	mempool mempl.Mempool
 }
 
 // StateOption sets an optional parameter on the State.
@@ -228,6 +232,11 @@ func StateMetrics(metrics *Metrics) StateOption {
 // statesync offline - before booting sets the metrics.
 func OfflineStateSyncHeight(height int64) StateOption {
 	return func(cs *State) { cs.offlineStateSyncHeight = height }
+}
+
+// StateMempool sets the mempool for compact proposal tx lookup.
+func StateMempool(mp mempl.Mempool) StateOption {
+	return func(cs *State) { cs.mempool = mp }
 }
 
 // String returns a string.
@@ -892,6 +901,10 @@ func (cs *State) handleMsg(mi msgInfo) {
 		// will not cause transition.
 		// once proposal is set, we can receive block parts
 		err = cs.setProposal(msg.Proposal)
+		// If compact proposal reconstructed the block, trigger prevote immediately
+		if err == nil && cs.ProposalBlock != nil && cs.Step <= cstypes.RoundStepPropose {
+			cs.handleCompleteProposal(cs.Height)
+		}
 
 	case *BlockPartMessage:
 		// if the proposal is complete, we'll enterPrevote or tryFinalizeCommit
@@ -1240,6 +1253,32 @@ func (cs *State) defaultDecideProposal(height int64, round int32) {
 	// Make proposal
 	propBlockID := types.BlockID{Hash: block.Hash(), PartSetHeader: blockParts.Header()}
 	proposal := types.NewProposal(height, round, cs.ValidRound, propBlockID)
+
+	// Populate compact block data for fast reconstruction by receivers
+	if cs.config.CompactProposals && cs.mempool != nil {
+		proposal.CompactHeader = &block.Header
+		proposal.CompactLastCommit = block.LastCommit
+		proposal.CompactEvidence = block.Evidence
+		proposal.ProposerAddress = block.ProposerAddress
+
+		txs := block.Data.Txs
+		proposal.TxKeys = make([]types.TxKey, len(txs))
+		for i, tx := range txs {
+			proposal.TxKeys[i] = tx.Key()
+		}
+
+		// Non-mempool txs: those NOT found in our own mempool (app-injected)
+		_, missingIndices := cs.mempool.GetTxsForKeys(proposal.TxKeys)
+		if len(missingIndices) > 0 {
+			proposal.NonMempoolIndices = make([]int32, len(missingIndices))
+			proposal.NonMempoolTxs = make([]types.Tx, len(missingIndices))
+			for j, idx := range missingIndices {
+				proposal.NonMempoolIndices[j] = int32(idx)
+				proposal.NonMempoolTxs[j] = txs[idx]
+			}
+		}
+	}
+
 	p := proposal.ToProto()
 	if err := cs.privValidator.SignProposal(cs.state.ChainID, p); err == nil {
 		proposal.Signature = p.Signature
@@ -2016,7 +2055,85 @@ func (cs *State) defaultSetProposal(proposal *types.Proposal) error {
 	}
 
 	cs.Logger.Info("received proposal", "proposal", proposal, "proposer", pubKey.Address())
+
+	// Attempt compact block reconstruction from mempool.
+	// If successful, we can enter prevote immediately without waiting for block parts.
+	// If it fails (missing txs, hash mismatch), we fall back to the normal block parts path.
+	if cs.config.CompactProposals && proposal.HasCompactData() && cs.mempool != nil {
+		if block, err := cs.tryReconstructBlock(proposal); err == nil {
+			if block.HashesTo(proposal.BlockID.Hash) {
+				parts, err := block.MakePartSet(types.BlockPartSizeBytes)
+				if err == nil {
+					cs.ProposalBlock = block
+					cs.ProposalBlockParts = parts
+					cs.Logger.Info("compact proposal: block reconstructed from mempool",
+						"height", proposal.Height, "txs", len(block.Data.Txs))
+					cs.metrics.CompactReconstructed.Add(1)
+				} else {
+					cs.Logger.Debug("compact proposal: failed to make part set, waiting for parts",
+						"err", err)
+					cs.metrics.CompactMissed.Add(1)
+				}
+			} else {
+				cs.Logger.Error("compact proposal: hash mismatch after reconstruction",
+					"expected", proposal.BlockID.Hash, "got", block.Hash())
+				cs.metrics.CompactHashMismatch.Add(1)
+			}
+		} else {
+			cs.Logger.Debug("compact proposal: reconstruction failed, waiting for parts",
+				"err", err)
+			cs.metrics.CompactMissed.Add(1)
+		}
+	}
+
 	return nil
+}
+
+func (cs *State) tryReconstructBlock(proposal *types.Proposal) (*types.Block, error) {
+	numTxs := len(proposal.TxKeys)
+	txs := make(types.Txs, numTxs)
+
+	// 1. Fill non-mempool txs (app-injected) from proposal
+	nonMempoolSet := make(map[int]bool, len(proposal.NonMempoolIndices))
+	for j, idx := range proposal.NonMempoolIndices {
+		if int(idx) >= numTxs || j >= len(proposal.NonMempoolTxs) {
+			return nil, fmt.Errorf("invalid non-mempool index %d", idx)
+		}
+		txs[idx] = proposal.NonMempoolTxs[j]
+		nonMempoolSet[int(idx)] = true
+	}
+
+	// 2. Collect user tx keys to look up in mempool
+	var userKeys []types.TxKey
+	var userIndices []int
+	for i := range proposal.TxKeys {
+		if nonMempoolSet[i] {
+			continue
+		}
+		userKeys = append(userKeys, proposal.TxKeys[i])
+		userIndices = append(userIndices, i)
+	}
+
+	// 3. Batch lookup in mempool
+	if len(userKeys) > 0 {
+		foundTxs, missingIndices := cs.mempool.GetTxsForKeys(userKeys)
+		if len(missingIndices) > 0 {
+			return nil, fmt.Errorf("missing %d txs in mempool", len(missingIndices))
+		}
+
+		// 4. Place found txs at correct positions
+		for j, foundTx := range foundTxs {
+			txs[userIndices[j]] = foundTx
+		}
+	}
+
+	// 5. Reconstruct block
+	return &types.Block{
+		Header:     *proposal.CompactHeader,
+		Data:       types.Data{Txs: txs},
+		Evidence:   proposal.CompactEvidence,
+		LastCommit: proposal.CompactLastCommit,
+	}, nil
 }
 
 // NOTE: block is not necessarily valid.
