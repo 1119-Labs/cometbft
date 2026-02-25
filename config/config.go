@@ -1010,6 +1010,10 @@ type ConsensusConfig struct {
 	PeerQueryMaj23SleepDuration time.Duration `mapstructure:"peer_query_maj23_sleep_duration"`
 
 	DoubleSignCheckHeight int64 `mapstructure:"double_sign_check_height"`
+
+	// CompactProposals enables sending compact block data in the Proposal message
+	// so receivers can reconstruct the block from their mempool without waiting for block parts.
+	CompactProposals bool `mapstructure:"compact_proposals"`
 }
 
 // DefaultConsensusConfig returns a default configuration for the consensus service
@@ -1029,6 +1033,7 @@ func DefaultConsensusConfig() *ConsensusConfig {
 		PeerGossipSleepDuration:     100 * time.Millisecond,
 		PeerQueryMaj23SleepDuration: 2000 * time.Millisecond,
 		DoubleSignCheckHeight:       int64(0),
+		CompactProposals:            true,
 	}
 }
 

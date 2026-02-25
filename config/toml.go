@@ -483,6 +483,10 @@ timeout_commit = "{{ .Consensus.TimeoutCommit }}"
 # So, validators should stop the state machine, wait for some blocks, and then restart the state machine to avoid panic.
 double_sign_check_height = {{ .Consensus.DoubleSignCheckHeight }}
 
+# Send compact block data in Proposal messages for faster block propagation.
+# Receivers reconstruct blocks from their mempool without waiting for block parts.
+compact_proposals = {{ .Consensus.CompactProposals }}
+
 # Make progress as soon as we have all the precommits (as if TimeoutCommit = 0)
 skip_timeout_commit = {{ .Consensus.SkipTimeoutCommit }}
 
