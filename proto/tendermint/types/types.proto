@@ -151,6 +151,15 @@ message Proposal {
   google.protobuf.Timestamp timestamp = 6
       [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
   bytes signature = 7;
+
+  // Compact block proposal fields (backward compatible, NOT in CanonicalProposal)
+  repeated bytes tx_keys              = 8;   // SHA-256 of each tx, in block order (32 bytes each)
+  repeated bytes non_mempool_txs      = 9;   // Full bytes of app-injected txs
+  repeated int32 non_mempool_indices  = 10;  // Position of each non_mempool_tx in tx_keys
+  Header         compact_header       = 11;  // Block header
+  Commit         compact_last_commit  = 12;  // Previous block commit
+  bytes          proposer_address     = 13;  // Proposer identity
+  bytes          compact_evidence     = 14;  // Marshaled EvidenceList proto (avoids circular import)
 }
 
 message SignedHeader {
