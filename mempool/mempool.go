@@ -100,6 +100,10 @@ type Mempool interface {
 
 	// SizeBytes returns the total size of all txs in the mempool.
 	SizeBytes() int64
+
+	// GetTxsForKeys looks up transactions by their SHA-256 keys.
+	// Returns txs slice (nil entries for missing) and indices of missing keys.
+	GetTxsForKeys(keys []types.TxKey) (txs []types.Tx, missingIndices []int)
 }
 
 // PreCheckFunc is an optional filter executed before CheckTx and rejects
