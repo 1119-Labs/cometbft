@@ -30,6 +30,16 @@ type Proposal struct {
 	BlockID   BlockID   `json:"block_id"`
 	Timestamp time.Time `json:"timestamp"`
 	Signature []byte    `json:"signature"`
+
+	// Compact block data (optional, backward compatible).
+	// NOT included in CanonicalProposal — signing is unaffected.
+	TxKeys            []TxKey      `json:"tx_keys,omitempty"`
+	NonMempoolTxs     []Tx         `json:"non_mempool_txs,omitempty"`
+	NonMempoolIndices []int32      `json:"non_mempool_indices,omitempty"`
+	CompactHeader     *Header      `json:"compact_header,omitempty"`
+	CompactLastCommit *Commit      `json:"compact_last_commit,omitempty"`
+	CompactEvidence   EvidenceData `json:"compact_evidence,omitempty"`
+	ProposerAddress   Address      `json:"proposer_address,omitempty"`
 }
 
 // NewProposal returns a new Proposal.
@@ -43,6 +53,39 @@ func NewProposal(height int64, round int32, polRound int32, blockID BlockID) *Pr
 		POLRound:  polRound,
 		Timestamp: cmttime.Now(),
 	}
+}
+
+// HasCompactData returns true if the proposal contains compact block data.
+func (p *Proposal) HasCompactData() bool {
+	return p.CompactHeader != nil && len(p.TxKeys) > 0
+}
+
+// headerFromProtoNoValidate converts a proto Header to a native Header without
+// calling ValidateBasic(). The reconstructed block will be validated separately.
+func headerFromProtoNoValidate(ph *cmtproto.Header) Header {
+	var h Header
+	if ph == nil {
+		return h
+	}
+	bi, err := BlockIDFromProto(&ph.LastBlockId)
+	if err != nil {
+		bi = &BlockID{}
+	}
+	h.Version = ph.Version
+	h.ChainID = ph.ChainID
+	h.Height = ph.Height
+	h.Time = ph.Time
+	h.LastBlockID = *bi
+	h.ValidatorsHash = ph.ValidatorsHash
+	h.NextValidatorsHash = ph.NextValidatorsHash
+	h.ConsensusHash = ph.ConsensusHash
+	h.AppHash = ph.AppHash
+	h.DataHash = ph.DataHash
+	h.EvidenceHash = ph.EvidenceHash
+	h.LastResultsHash = ph.LastResultsHash
+	h.LastCommitHash = ph.LastCommitHash
+	h.ProposerAddress = ph.ProposerAddress
+	return h
 }
 
 // ValidateBasic performs basic validation.
@@ -148,6 +191,38 @@ func (p *Proposal) ToProto() *cmtproto.Proposal {
 	pb.Timestamp = p.Timestamp
 	pb.Signature = p.Signature
 
+	// Compact block fields
+	if len(p.TxKeys) > 0 {
+		pb.TxKeys = make([][]byte, len(p.TxKeys))
+		for i, key := range p.TxKeys {
+			k := key // copy
+			pb.TxKeys[i] = k[:]
+		}
+	}
+	if len(p.NonMempoolTxs) > 0 {
+		pb.NonMempoolTxs = make([][]byte, len(p.NonMempoolTxs))
+		for i, tx := range p.NonMempoolTxs {
+			pb.NonMempoolTxs[i] = tx
+		}
+	}
+	pb.NonMempoolIndices = p.NonMempoolIndices
+	if p.CompactHeader != nil {
+		pb.CompactHeader = p.CompactHeader.ToProto()
+	}
+	if p.CompactLastCommit != nil {
+		pb.CompactLastCommit = p.CompactLastCommit.ToProto()
+	}
+	pb.ProposerAddress = p.ProposerAddress
+	if len(p.CompactEvidence.Evidence) > 0 {
+		evProto, err := p.CompactEvidence.ToProto()
+		if err == nil {
+			evBytes, err := evProto.Marshal()
+			if err == nil {
+				pb.CompactEvidence = evBytes
+			}
+		}
+	}
+
 	return pb
 }
 
@@ -172,6 +247,44 @@ func ProposalFromProto(pp *cmtproto.Proposal) (*Proposal, error) {
 	p.POLRound = pp.PolRound
 	p.Timestamp = pp.Timestamp
 	p.Signature = pp.Signature
+
+	// Compact block fields
+	if len(pp.TxKeys) > 0 {
+		p.TxKeys = make([]TxKey, len(pp.TxKeys))
+		for i, keyBytes := range pp.TxKeys {
+			if len(keyBytes) == TxKeySize {
+				copy(p.TxKeys[i][:], keyBytes)
+			}
+		}
+	}
+	if len(pp.NonMempoolTxs) > 0 {
+		p.NonMempoolTxs = make([]Tx, len(pp.NonMempoolTxs))
+		for i, tx := range pp.NonMempoolTxs {
+			p.NonMempoolTxs[i] = tx
+		}
+	}
+	p.NonMempoolIndices = pp.NonMempoolIndices
+	if pp.CompactHeader != nil {
+		// Deserialize without validation — the reconstructed block will be validated later.
+		h := headerFromProtoNoValidate(pp.CompactHeader)
+		p.CompactHeader = &h
+	}
+	if pp.CompactLastCommit != nil {
+		c, err := CommitFromProto(pp.CompactLastCommit)
+		if err == nil {
+			p.CompactLastCommit = c
+		}
+	}
+	p.ProposerAddress = pp.ProposerAddress
+	if len(pp.CompactEvidence) > 0 {
+		var evProto cmtproto.EvidenceList
+		if err := evProto.Unmarshal(pp.CompactEvidence); err == nil {
+			var evData EvidenceData
+			if err := evData.FromProto(&evProto); err == nil {
+				p.CompactEvidence = evData
+			}
+		}
+	}
 
 	return p, p.ValidateBasic()
 }

@@ -1,11 +1,11 @@
 syntax = "proto3";
-package dydxcometbft.subaccounts;
+package perpxcometbft.subaccounts;
 
 import "gogoproto/gogo.proto";
 
-option go_package = "github.com/cometbft/cometbft/proto/dydxcometbft/subaccounts";
+option go_package = "github.com/cometbft/cometbft/proto/perpxcometbft/subaccounts";
 
-// AssetPositions define an account’s positions of an `Asset`.
+// AssetPositions define an account's positions of an `Asset`.
 // Therefore they hold any information needed to trade on Spot and Margin.
 message AssetPosition {
   // The `Id` of the `Asset`.
@@ -13,7 +13,7 @@ message AssetPosition {
   // The absolute size of the position in base quantums.
   bytes quantums = 2 [
     (gogoproto.customtype) =
-        "github.com/cometbft/cometbft/proto/dydxcometbft/gotypes.SerializableInt",
+        "github.com/cometbft/cometbft/proto/perpxcometbft/gotypes.SerializableInt",
     (gogoproto.nullable) = false
   ];
   // The `Index` (either `LongIndex` or `ShortIndex`) of the `Asset` the last

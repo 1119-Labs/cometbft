@@ -46,6 +46,13 @@ func (emptyMempool) FlushAppConn() error           { return nil }
 func (emptyMempool) TxsAvailable() <-chan struct{} { return make(chan struct{}) }
 func (emptyMempool) EnableTxsAvailable()           {}
 func (emptyMempool) TxsBytes() int64               { return 0 }
+func (emptyMempool) GetTxsForKeys(keys []types.TxKey) ([]types.Tx, []int) {
+	missing := make([]int, len(keys))
+	for i := range keys {
+		missing[i] = i
+	}
+	return make([]types.Tx, len(keys)), missing
+}
 
 func (emptyMempool) TxsFront() *clist.CElement    { return nil }
 func (emptyMempool) TxsWaitChan() <-chan struct{} { return nil }

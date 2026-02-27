@@ -124,6 +124,18 @@ type Metrics struct {
 	// correspond to earlier heights and rounds than this node is currently
 	// in.
 	LateVotes metrics.Counter `metrics_labels:"vote_type"`
+
+	// CompactReconstructed is the number of blocks successfully reconstructed
+	// from compact proposal data via mempool tx lookup.
+	CompactReconstructed metrics.Counter
+
+	// CompactMissed is the number of compact proposal reconstructions that failed
+	// because the receiver's mempool was missing some transactions.
+	CompactMissed metrics.Counter
+
+	// CompactHashMismatch is the number of compact proposal reconstructions where
+	// the reconstructed block hash did not match the proposal's BlockID hash.
+	CompactHashMismatch metrics.Counter
 }
 
 func (m *Metrics) MarkProposalProcessed(accepted bool) {

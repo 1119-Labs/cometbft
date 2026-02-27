@@ -198,6 +198,24 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "late_votes",
 			Help:      "LateVotes stores the number of votes that were received by this node that correspond to earlier heights and rounds than this node is currently in.",
 		}, append(labels, "vote_type")).With(labelsAndValues...),
+		CompactReconstructed: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "compact_reconstructed",
+			Help:      "CompactReconstructed is the number of blocks successfully reconstructed from compact proposal data via mempool tx lookup.",
+		}, labels).With(labelsAndValues...),
+		CompactMissed: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "compact_missed",
+			Help:      "CompactMissed is the number of compact proposal reconstructions that failed because the receiver's mempool was missing some transactions.",
+		}, labels).With(labelsAndValues...),
+		CompactHashMismatch: prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "compact_hash_mismatch",
+			Help:      "CompactHashMismatch is the number of compact proposal reconstructions where the reconstructed block hash did not match the proposal's BlockID hash.",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
@@ -233,5 +251,8 @@ func NopMetrics() *Metrics {
 		ProposalCreateCount:       discard.NewCounter(),
 		RoundVotingPowerPercent:   discard.NewGauge(),
 		LateVotes:                 discard.NewCounter(),
+		CompactReconstructed:      discard.NewCounter(),
+		CompactMissed:             discard.NewCounter(),
+		CompactHashMismatch:       discard.NewCounter(),
 	}
 }

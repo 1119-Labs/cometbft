@@ -170,6 +170,31 @@ func (_m *Mempool) Update(blockHeight int64, blockTime time.Time, blockTxs types
 	return r0
 }
 
+// GetTxsForKeys provides a mock function with given fields: keys
+func (_m *Mempool) GetTxsForKeys(keys []types.TxKey) ([]types.Tx, []int) {
+	ret := _m.Called(keys)
+
+	var r0 []types.Tx
+	if rf, ok := ret.Get(0).(func([]types.TxKey) []types.Tx); ok {
+		r0 = rf(keys)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]types.Tx)
+		}
+	}
+
+	var r1 []int
+	if rf, ok := ret.Get(1).(func([]types.TxKey) []int); ok {
+		r1 = rf(keys)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).([]int)
+		}
+	}
+
+	return r0, r1
+}
+
 type mockConstructorTestingTNewMempool interface {
 	mock.TestingT
 	Cleanup(func())

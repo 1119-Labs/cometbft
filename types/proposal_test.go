@@ -217,3 +217,73 @@ func TestProposalValidateBlockSize(t *testing.T) {
 		})
 	}
 }
+
+func TestProposalCompactDataRoundTrip(t *testing.T) {
+	// Create a proposal with compact block data
+	proposal := NewProposal(1, 2, 3, makeBlockID([]byte("hash"), 2, []byte("part_set_hash")))
+	proposal.Signature = []byte("sig")
+
+	// Populate compact fields
+	tx1 := Tx([]byte("tx1-data"))
+	tx2 := Tx([]byte("tx2-data"))
+	tx3 := Tx([]byte("tx3-injected"))
+	proposal.TxKeys = []TxKey{tx1.Key(), tx2.Key(), tx3.Key()}
+	proposal.NonMempoolTxs = []Tx{tx3}
+	proposal.NonMempoolIndices = []int32{2}
+	proposal.CompactHeader = &Header{
+		ChainID: "test-chain",
+		Height:  1,
+	}
+	proposal.CompactLastCommit = &Commit{
+		Height: 0,
+		Round:  0,
+	}
+	proposal.ProposerAddress = []byte("proposer-addr")
+	proposal.CompactEvidence = EvidenceData{}
+
+	require.True(t, proposal.HasCompactData())
+
+	// Serialize to proto
+	protoProposal := proposal.ToProto()
+
+	// Verify proto fields are populated
+	require.Len(t, protoProposal.TxKeys, 3)
+	require.Len(t, protoProposal.NonMempoolTxs, 1)
+	require.Equal(t, []int32{2}, protoProposal.NonMempoolIndices)
+	require.NotNil(t, protoProposal.CompactHeader)
+	require.NotNil(t, protoProposal.CompactLastCommit)
+	require.Equal(t, []byte("proposer-addr"), protoProposal.ProposerAddress)
+
+	// Deserialize back
+	restored, err := ProposalFromProto(protoProposal)
+	require.NoError(t, err)
+
+	// Verify compact fields survived round-trip
+	require.True(t, restored.HasCompactData())
+	require.Equal(t, proposal.TxKeys, restored.TxKeys)
+	require.Equal(t, proposal.NonMempoolTxs, restored.NonMempoolTxs)
+	require.Equal(t, proposal.NonMempoolIndices, restored.NonMempoolIndices)
+	require.Equal(t, proposal.CompactHeader.ChainID, restored.CompactHeader.ChainID)
+	require.Equal(t, proposal.CompactHeader.Height, restored.CompactHeader.Height)
+	require.Equal(t, proposal.CompactLastCommit.Height, restored.CompactLastCommit.Height)
+	require.Equal(t, proposal.ProposerAddress, restored.ProposerAddress)
+}
+
+func TestProposalHasCompactData(t *testing.T) {
+	// Empty proposal — no compact data
+	p := &Proposal{}
+	require.False(t, p.HasCompactData())
+
+	// TxKeys but no header — no compact data
+	p.TxKeys = []TxKey{{0x01}}
+	require.False(t, p.HasCompactData())
+
+	// Header but no TxKeys — no compact data
+	p.TxKeys = nil
+	p.CompactHeader = &Header{}
+	require.False(t, p.HasCompactData())
+
+	// Both — has compact data
+	p.TxKeys = []TxKey{{0x01}}
+	require.True(t, p.HasCompactData())
+}

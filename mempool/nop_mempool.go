@@ -76,6 +76,15 @@ func (*NopMempool) Size() int { return 0 }
 // SizeBytes always returns 0.
 func (*NopMempool) SizeBytes() int64 { return 0 }
 
+// GetTxsForKeys returns all indices as missing since NopMempool has no txs.
+func (*NopMempool) GetTxsForKeys(keys []types.TxKey) ([]types.Tx, []int) {
+	missing := make([]int, len(keys))
+	for i := range keys {
+		missing[i] = i
+	}
+	return make([]types.Tx, len(keys)), missing
+}
+
 // NopMempoolReactor is a mempool reactor that does nothing.
 type NopMempoolReactor struct {
 	service.BaseService

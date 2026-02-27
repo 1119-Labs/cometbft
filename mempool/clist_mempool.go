@@ -720,6 +720,21 @@ func (mem *CListMempool) purgeExpiredTxs(blockHeight int64, blockTime time.Time)
 	}
 }
 
+// GetTxsForKeys looks up transactions by their SHA-256 keys in the mempool.
+// Thread-safe: txsMap is a sync.Map.
+func (mem *CListMempool) GetTxsForKeys(keys []types.TxKey) ([]types.Tx, []int) {
+	txs := make([]types.Tx, len(keys))
+	var missing []int
+	for i, key := range keys {
+		if e, ok := mem.txsMap.Load(key); ok {
+			txs[i] = e.(*clist.CElement).Value.(*mempoolTx).tx
+		} else {
+			missing = append(missing, i)
+		}
+	}
+	return txs, missing
+}
+
 func (mem *CListMempool) recheckTxs() {
 	if mem.Size() == 0 {
 		panic("recheckTxs is called, but the mempool is empty")
